@@ -9,9 +9,6 @@ def main():
     skull = cv2.cvtColor(skull, cv2.COLOR_BGR2GRAY).astype(np.uint8)
     square_skull = fit_image_to_square(image=skull, n=196)
     
-    # cv2.imshow("", square_skull)
-    # cv2.waitKey()
-
     line_count = 128
     line_canvas = np.ones(shape=(196, 196), dtype=np.uint8) * 255
     lines = np.random.rand(line_count, 2, 2) * 196
