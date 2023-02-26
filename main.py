@@ -8,45 +8,46 @@ import time
 from imageops import *
 from evolution import *
 
-# Line thickness should be determined by a constant over the magnitude of the dimensions
+LINE_THICKNESS = 1
+LINE_OPACITY = 0.2
 
 def main():
-    line_count = 120
-    solution_size = 4 * line_count # Written to indicate (how many components per line) * (how many lines)
+    lines_per_batch = 16
+    batch_size = 4 * lines_per_batch # Four components per batch
+    batches = 25
+    seed = 794
+
     square_size = 100
 
-    target_image = cv2.imread("images/eye.jpg")
+    target_image = cv2.imread("images/darwin.jpg")
     target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255
-    target_image = cv2.GaussianBlur(target_image, (1, 1), cv2.BORDER_DEFAULT)
-    # dX = cv2.Sobel(target_image, ddepth=cv2.CV_32F, dx=1, dy=0, ksize=3)
-    # dY = cv2.Sobel(target_image, ddepth=cv2.CV_32F, dx=0, dy=1, ksize=3)
-    # target_image *= cv2.erode(1.0 - np.sqrt(dX**2 + dY**2), np.ones((3, 3)), iterations=1)
-    target_image = (target_image * 255).astype(np.uint8)
-    target_image = cv2.convertScaleAbs(target_image, alpha=1.5, beta=0)
-    target_image = fit_image_to_square(image=target_image, n=square_size)
+    target_image = fit_image_to_square(image=target_image, n=square_size, background=1)
 
     # Error function
-    def error_function(base: np.ndarray, lines: np.ndarray) -> float:
-        lines = draw_normalized_lines(lines, base.shape, 1)
-        lines = cv2.blur(lines, ksize=(2, 2))  # Blur simulates how lines close together simulate a lighter shade
-        # error = seasoned_L2(base, lines, intensity=2.5)
-        error = L2(base, lines)
+    def batch_error(base: np.ndarray, lines: np.ndarray, background: np.ndarray) -> float:
+        lines = opacity_normalized_lines_center_bg(lines, background, thickness=LINE_THICKNESS, opacity=LINE_OPACITY)
+        error = RMSE(base, lines)
         return error
 
+    # Create the optimizer
     optimizer = AdamOptimizer(
-        solution_size, 
-        alpha=0.3, 
-        beta1=0.8,
-        beta2=0.95,
+        batch_size, 
+        alpha=0.4, 
+        beta1=0.9,
+        beta2=0.99,
         decay=1,
         decay_alpha=True, 
         mode="minimize"
-    ) # Alpha is one because the solver applies its own step size
+    )
 
-    stdev = np.ones(solution_size) * 0.1
-    solver = ESSolver(
-        parameter_count=solution_size,
-        population_count=125, 
+    # Create a blank background canvas
+    background = np.ones(shape=(target_image.shape), dtype=np.float32)
+    
+    # Create the evolution stratgies solver
+    stdev = np.ones(batch_size) * 0.1
+    essolver = ESSolver(
+        parameter_count=batch_size,
+        population_count=30, 
 
         center=None,
         center_bounds=(0, 1),
@@ -54,41 +55,87 @@ def main():
 
         sigma=stdev,
         sigma_bounds=(0.01, 0.5),
-        sigma_alpha=0.15,
+        sigma_alpha=0.1,
 
-        seed=9,
+        seed=seed,
         optimizer=optimizer,
-        error_function=lambda lines: error_function(target_image, lines)
+        error_function=lambda lines: batch_error(target_image, lines, background)
     )
-    solver.randomize_center(min=0.1, max=0.9)
+    essolver.randomize_center(low=0, high=1)
 
-    errors = solver.climb(cycles=2000, log_every=50)
+    # Create the genetic solver
+    gensolver = GeneticSolver(
+        parameter_count=batch_size, 
+        population_count=30, 
+        mode="minimize", 
+        mutation_probability=0.2, 
+        mutation_strength=0.3,
+        use_crossbreeding=True,
+        seed=seed, 
+        error_function=lambda lines: batch_error(target_image, lines, background)
+    )
+    gensolver.randomize_population(low=0, high=1)
 
-    # Final logging
-    print(f"\n\nDelta Error: {max(errors) - min(errors)}")
-    print(f"Final L2: {error_function(target_image, solver.center)}")
-    
-    # Graphs
-    plt.figure()
-    plt.title("Error history")
-    plt.plot(errors)
+    # This process uses a mini batch gradient descent that uses both genetic algorithms and evolution strategies in a batch.
+    # The genetic algroithm is there to find a good starting solution, while the evolution strategies are there to optimize it.
+    # This works very well if given enough cycles, but ends up being harmful if too many batches are given
+    background = np.ones(shape=(target_image.shape))
+    all_errors = []
+    all_lines = np.zeros(shape=(batch_size * batches))
+    for i in range(batches):
+        # Re-randomize lines
+        gensolver.randomize_population(low=0, high=1)
 
-    plt.figure()
-    plt.title("Target Image")
+        # Climb log the errors
+        print(f"\n\nBATCH {i+1}:")
+        print("Genetic:")
+        generrors = gensolver.climb(cycles=30, log_every=100)
+        all_errors.extend(generrors)
+        print("Evolutionary:")
+        essolver.center = gensolver.best
+        essolver.sigma = np.ones(batch_size) * 0.1
+        eserrors = essolver.climb(cycles=100, offset=30, log_every=100)
+        all_errors.extend(eserrors)
+
+        # Store computed lines
+        all_lines[(i * batch_size):((i+1) * batch_size)] = essolver.center
+
+        # Set the background to be what was previously generated
+        background = opacity_normalized_lines_center_bg(essolver.center, background, thickness=LINE_THICKNESS, opacity=LINE_OPACITY)
+
+    # Show the target image
+    plt.figure(figsize=(4, 4))
+    plt.axis("off")
+    plt.title("Target")
     plt.imshow(target_image, cmap="Greys_r")
+    plt.clim(0, 1)
 
-    plt.figure()
-    plt.title("Line Recreation")
-    lines = draw_normalized_lines(solver.center, (square_size, square_size), 1)
-    lines = cv2.blur(lines, ksize=(2, 2))
-    plt.imshow(lines, cmap="Greys_r")
+    # Show what was created
+    plt.figure(figsize=(4, 4))
+    plt.axis("off")
+    plt.title("Generated")
+    plt.imshow(background, cmap="Greys_r")
+    plt.clim(0, 1)
 
-    plt.figure()
-    plt.title("Line Recreation Upscaled")
-    plt.imshow(draw_normalized_lines(solver.center, (square_size * 4, square_size * 4), 2), cmap="Greys_r")
+    # Show a larger version
+    upscale_multiplier = 2
+    upscale_generated = opacity_normalized_lines_center_bg(
+        all_lines, 
+        np.ones(shape=(background.shape[0] * upscale_multiplier, background.shape[1] * upscale_multiplier)), 
+        thickness=int(LINE_THICKNESS * upscale_multiplier), 
+        opacity=LINE_OPACITY * 0.75
+    )
+    plt.figure(figsize=(4, 4))
+    plt.axis("off")
+    plt.title("Generated Upscaled")
+    plt.imshow(upscale_generated, cmap="Greys_r")
+    plt.clim(0, 1)
 
+    # Graph of errors
+    plt.figure(figsize=(40,24))
+    plt.title("Errors")
+    plt.plot(all_errors)
     plt.show()
-    
 
 if __name__ == "__main__":
     main()

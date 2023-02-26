@@ -75,8 +75,8 @@ class ESSolver(object):
         np.random.seed(seed)
 
     # Randomizes values using normally distributed random variables about zero
-    def randomize_center(self, min=0, max=1) -> None:
-        self.center = np.random.uniform(low=min, high=max, size=self.parameter_count)
+    def randomize_center(self, low=0, high=1) -> None:
+        self.center = np.random.uniform(low=low, high=high, size=self.parameter_count)
 
     # Computes the current gradients
     def compute_gradients(self) -> tuple:
@@ -124,27 +124,107 @@ class ESSolver(object):
         return (center_gradient_total, sigma_gradient_total)
     
     # Performs gradient descent / ascent over a set number of cycles
-    def climb(self, cycles: int=100, log_every: int=100, update_callback=None):
+    # Offset is needed so that there isn't a massive spike when switching between modes of ascent
+    def climb(self, cycles: int=100, offset: int=0, log_every: int=100):
         errors = []
-        for i in range(cycles):
+        for i in range(offset, cycles + offset):
             center_gradient, sigma_gradient = self.compute_gradients()
 
             self.center += self.center_alpha * self.optimizer.optimize(center_gradient, i+1)
-            # self.center -= self.center_alpha * center_gradient
+            # self.center -= self.center_alpha * center_gradient * 10000
             self.center = np.clip(self.center, self.center_bounds[0], self.center_bounds[1])
 
             self.sigma += self.sigma_alpha * self.optimizer.optimize(sigma_gradient, i+1)
-            # self.sigma -= self.sigma_alpha * sigma_gradient
+            # self.sigma -= self.sigma_alpha * sigma_gradient * 10000
             self.sigma = np.clip(self.sigma, self.sigma_bounds[0], self.sigma_bounds[1])
 
             error = self.error_function(self.center)
             errors.append(error)
 
-            if (i % log_every == 0):
-                print(f"Error of cycle {i}: {error}")
-
-            if (update_callback is not None):
-                update_callback(self.center)
+            if ((i+1) % log_every == 0):
+                print(f"Error of cycle {i+1}: {error}")
 
         return errors
     
+# Genetic algorithm loose implimentation
+class GeneticSolver(object):
+    def __init__(
+        self, 
+        parameter_count: int, 
+        population_count: int, 
+
+        population_bounds: tuple=(0, 1),
+
+        mutation_probability: float=0.1,
+        mutation_strength: float=0.5,
+        survival_amount: float=0.25,
+        decay: float=0.5,
+        use_crossbreeding: bool=False,
+
+        error_function=None,
+        mode: str="minimize",
+        seed: int=0,
+    ):
+        self.parameter_count = parameter_count
+        self.population_count = population_count
+        self.population = np.zeros(shape=(population_count, parameter_count))
+        self.best = np.zeros(parameter_count)
+        self.population_bounds = population_bounds
+        self.mutation_probability = mutation_probability
+        self.mutation_strength_initial, self.mutation_strength = mutation_strength, mutation_strength
+        self.survivor_count = int(survival_amount * population_count)
+        self.use_crossbreeding = use_crossbreeding
+        self.error_function = error_function
+        
+        if mode == "minimize":
+            self.reverse = False
+        elif mode == "maximize":
+            self.reverse = True
+        else:
+            raise ValueError(f"Unknown mode {mode}", "mode parameter can only be 'minimize' or 'maximize'")
+
+        np.random.seed(seed)
+
+    def randomize_population(self, low: float=0, high: float=1):
+        self.population = np.random.uniform(low=low, high=high, size=(self.population_count, self.parameter_count))
+
+    def cull_fill_population(self):
+        scored_population = [(self.error_function(gene), gene) for gene in self.population]
+        scored_population.sort(reverse=self.reverse, key=lambda x: x[0])
+        self.best = scored_population[0][1]
+        survivors = [ranked_gene[1] for ranked_gene in scored_population[:self.survivor_count]]
+        new_population = [*survivors]
+
+        for i in range(self.population_count - self.survivor_count):
+            mutations = (
+                (np.random.rand(self.parameter_count) < self.mutation_probability) *
+                ((np.random.rand(self.parameter_count) - 0.5) * self.mutation_strength * 2)
+            )
+            if (self.use_crossbreeding):
+                parent1 = survivors[np.random.randint(low=0, high=self.survivor_count)]
+                parent2 = survivors[np.random.randint(low=0, high=self.survivor_count)]
+                inheritance = (np.random.rand(self.parameter_count) < 0.5)
+                new_gene = (parent1 * inheritance) + (parent2 * (1 - inheritance))
+                new_gene += mutations
+                new_gene = np.clip(new_gene, a_min=self.population_bounds[0], a_max=self.population_bounds[1])
+                new_population.append(new_gene)
+            else:
+                parent = survivors[np.random.randint(low=0, high=self.survivor_count)]
+                new_gene = parent + mutations
+                new_gene = np.clip(new_gene, a_min=self.population_bounds[0], a_max=self.population_bounds[1])
+                new_population.append(new_gene)
+        
+        self.population = new_population.copy()
+
+        return scored_population[0][0]
+
+    def climb(self, cycles: int=100, log_every: int=10):
+        errors = []
+        for i in range(cycles):
+            error = self.cull_fill_population()
+            errors.append(error)
+
+            if ((i+1) % log_every == 0):
+                print(f"Error of cycle {i+1}: {error}")
+
+        return errors
