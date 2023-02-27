@@ -58,7 +58,7 @@ def draw_lines(points: np.ndarray, dimensions: tuple, thickness: int=1) -> np.nd
     lines = points.reshape((-1, 2, 2))
     
     for line in lines:
-        canvas = cv2.line(canvas, line[0], line[1], 0, thickness)
+        canvas = cv2.line(canvas, line[0].astype(np.int32), line[1].astype(np.int32), 0, thickness)
 
     return canvas
 
@@ -78,13 +78,12 @@ def normalized_lines_points(points: np.ndarray, dimensions: tuple, thickness: in
 def normalized_lines_center(points: np.ndarray, dimensions: tuple, thickness: int=1) -> np.ndarray:
     canvas = np.ones(dimensions)
     lines = points.reshape((-1, 2, 2))
-    dimension_magnitude = np.linalg.norm(dimensions)
     
     for line in lines:
-        center = line[0] * dimensions
-        offset = np.array([np.cos(line[1][0] * 2*np.pi), np.sin(line[1][0] * 2*np.pi)]) * line[1][1] * dimension_magnitude
-        start = center + offset
-        end = center - offset
+        center = line[0]
+        offset = np.array([np.cos(line[1][0] * 2*np.pi), np.sin(line[1][0] * 2*np.pi)]) * line[1][1] * 0.25 # 0.25 is the scaling factor to prevent ugly screen-spanning lines
+        start = (center + offset) * dimensions
+        end = (center - offset) * dimensions
         canvas = cv2.line(canvas, start.astype(np.int32), end.astype(np.int32), 0, thickness)
 
     return canvas
@@ -106,13 +105,12 @@ def opacity_normalized_lines_points(points: np.ndarray, dimensions: tuple, thick
 def opacity_normalized_lines_center(points: np.ndarray, dimensions: tuple, thickness: int=1, opacity=0.5) -> np.ndarray:
     canvas = np.ones(dimensions)
     lines = points.reshape((-1, 2, 2))
-    dimension_magnitude = np.linalg.norm(dimensions) * 0.5 * 0.5 # Multiply by 0.25 because it is both added and subtracted, and I don't want lines too long
     
     for line in lines:
-        center = line[0] * dimensions
-        offset = np.array([np.cos(line[1][0] * 2*np.pi), np.sin(line[1][0] * 2*np.pi)]) * line[1][1] * dimension_magnitude
-        start = center + offset
-        end = center - offset
+        center = line[0]
+        offset = np.array([np.cos(line[1][0] * 2*np.pi), np.sin(line[1][0] * 2*np.pi)]) * line[1][1] * 0.25
+        start = (center + offset) * dimensions
+        end = (center - offset) * dimensions
         overlay = cv2.line(
             np.zeros(dimensions), 
             start.astype(np.int32), 
@@ -128,13 +126,12 @@ def opacity_normalized_lines_center(points: np.ndarray, dimensions: tuple, thick
 def opacity_normalized_lines_center_bg(points: np.ndarray, background: np.ndarray, thickness: int=1, opacity=0.5) -> np.ndarray:
     canvas = np.array(background, dtype=np.float64)
     lines = points.reshape((-1, 2, 2))
-    dimension_magnitude = np.linalg.norm(background.shape[0:2]) * 0.5 * 0.5 # Multiply by 0.25 because it is both added and subtracted, and I don't want lines too long
     
     for line in lines:
-        center = line[0] * background.shape[0:2]
-        offset = np.array([np.cos(line[1][0] * 2*np.pi), np.sin(line[1][0] * 2*np.pi)]) * line[1][1] * dimension_magnitude
-        start = center + offset
-        end = center - offset
+        center = line[0]
+        offset = np.array([np.cos(line[1][0] * 2*np.pi), np.sin(line[1][0] * 2*np.pi)]) * line[1][1] * 0.25
+        start = (center + offset) * background.shape[0:2]
+        end = (center - offset) * background.shape[0:2]
         overlay = cv2.line(
             np.zeros(background.shape[0:2]), 
             start.astype(np.int32), 

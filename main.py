@@ -7,25 +7,27 @@ import time
 
 from imageops import *
 from evolution import *
+from gcode import *
 
 LINE_THICKNESS = 1
-LINE_OPACITY = 0.2
+LINE_OPACITY = 0.6
 
 def main():
     lines_per_batch = 16
     batch_size = 4 * lines_per_batch # Four components per batch
-    batches = 25
+    batches = 43
     seed = 794
 
-    square_size = 100
+    square_size = 200
 
-    target_image = cv2.imread("images/darwin.jpg")
+    target_image = cv2.imread("images/skull.jpg")
     target_image = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255
     target_image = fit_image_to_square(image=target_image, n=square_size, background=1)
 
     # Error function
     def batch_error(base: np.ndarray, lines: np.ndarray, background: np.ndarray) -> float:
         lines = opacity_normalized_lines_center_bg(lines, background, thickness=LINE_THICKNESS, opacity=LINE_OPACITY)
+        lines = cv2.blur(lines, ksize=(7, 7))
         error = RMSE(base, lines)
         return error
 
@@ -89,12 +91,12 @@ def main():
         # Climb log the errors
         print(f"\n\nBATCH {i+1}:")
         print("Genetic:")
-        generrors = gensolver.climb(cycles=30, log_every=100)
+        generrors = gensolver.climb(cycles=30, log_every=30)
         all_errors.extend(generrors)
         print("Evolutionary:")
         essolver.center = gensolver.best
         essolver.sigma = np.ones(batch_size) * 0.1
-        eserrors = essolver.climb(cycles=100, offset=30, log_every=100)
+        eserrors = essolver.climb(cycles=100, offset=30, log_every=130)
         all_errors.extend(eserrors)
 
         # Store computed lines
@@ -102,6 +104,9 @@ def main():
 
         # Set the background to be what was previously generated
         background = opacity_normalized_lines_center_bg(essolver.center, background, thickness=LINE_THICKNESS, opacity=LINE_OPACITY)
+
+    # Save to GCODE
+    generate_gcode_from_lines(all_lines, mode="center", name="Test", offset=(25, 25, 0), scale=(125, 125))
 
     # Show the target image
     plt.figure(figsize=(4, 4))
@@ -122,8 +127,8 @@ def main():
     upscale_generated = opacity_normalized_lines_center_bg(
         all_lines, 
         np.ones(shape=(background.shape[0] * upscale_multiplier, background.shape[1] * upscale_multiplier)), 
-        thickness=int(LINE_THICKNESS * upscale_multiplier), 
-        opacity=LINE_OPACITY * 0.75
+        thickness=int(LINE_THICKNESS * upscale_multiplier / 2), 
+        opacity=1
     )
     plt.figure(figsize=(4, 4))
     plt.axis("off")
