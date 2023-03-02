@@ -2,6 +2,13 @@
 
 # Modern Evolutionary Art
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/eye_gif.gif" width="20%"></img>
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/face_gif.gif" width="20%"></img>
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/skull_gif.gif" width="20%"></img>
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/zebra_gif.gif" width="20%"></img>
+</p>
+
 ## Introduction
 Recently there has been a new burst of interest in *Genetic* and *Evolutionary Algorithms*. Modern technology has rocketed both of them far past their humble beginnings as fancy bit-flipping guessing machines, and they're now being employed in high precision and cutting edge tasks like deep reinforcement learning. While modern evolution strategies (abbreviated as *ES*) have become vital in fields involving policy gradients, a team of researchers at Google found what I think is a more interesting use for them: **creating art**.
 
