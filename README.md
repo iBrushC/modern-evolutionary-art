@@ -10,7 +10,17 @@ This project builds on the paper <a href="https://arxiv.org/abs/2109.08857">Mode
 ## Showcase
 Below are a few examples of the algorithm working. On the left is the target image, the middle shows the generated output, and the right is the image as it was drawn in real life.
 
-ADD SOME EXAMPLES HERE
+**Face**
+<br>
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/face_process.png" width="450"></img>
+
+**Eye**
+<br>
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/eye_process.png" width="450"></img>
+
+**Skull**
+<br>
+<img src="https://raw.githubusercontent.com/iBrushC/modern-evolutionary-art/main/generated_images/skull_process.png" width="450"></img>
 
 ## High Level Overview of the Algorithm
 Multiple workflows were tested, however the most successful one behaves as follows:
@@ -52,7 +62,6 @@ The error function is what makes or breaks a heuristic solver. This was definite
 
 <br>
 <img src="https://i0.wp.com/thepostmansknock.com/wp-content/uploads/2020/09/crosshatched_sphere.jpg?resize=960%2C713&ssl=1"></img>
-<br>
 <a href="https://thepostmansknock.com/the-beginners-guide-to-crosshatching/">Source</a>
 <br>
 
@@ -72,9 +81,9 @@ Thankfully, the line drawing task is just another rendition of gradient descent,
 
 <br>
 <img src="https://miro.medium.com/v2/resize:fit:720/format:webp/1*bKSddSmLDaYszWllvQ3Z6A.png"></img>
-<br>
 <a href="https://sweta-nit.medium.com/batch-mini-batch-and-stochastic-gradient-descent-e9bc4cacd461">Source</a>
 <br>
+
 The original paper is doing *batch gradient descent*, running the entire dataset through the neural network to get the gradients for the next step; this is equivalent to optimizing using every single shape to get the error for the next step. As can be seen in the diagram above, this is extremely precise, but the drawback is that many more calculations need to be done per step. 
 
 This can be fixed by using *stochastic gradient descent*, which choses a single sample of size $N$ and computes the gradient based on that. Optimizing for a single random line at a time is exactly what <a href="https://www.sciencedirect.com/science/article/pii/S0921889021001974">Michal Adamik et al. 2022</a> did, permitting far more accurate results with far more shapes (5,000 versus 200 for Yingtao Tian and David Ha). However, as can also be seen above, this can be jittery and imprecise, and did not work well when applied to pen strokes since the algorithm could never make meaningful progress in each step. 
@@ -86,7 +95,6 @@ When it comes to heuristic solvers, there are two types that are used in creatin
 **Real-coded genetic algorithms**: Genetic algorithms work by creating a population of solution vectors, scoring them all based on the cost/reward function, then creating a subpopulation containing only a certain percentage of the best. The subpopulation is then used as a base to repopulate the new population before the culling is run again. The solution vector of genetic algorithms is normally a set of bits representing genes, and they're flipped to turn them on or off using crossbreeding and mutations
 <br>
 <img src="https://miro.medium.com/v2/resize:fit:1100/format:webp/1*BYDJpa6M2rzWNSurvspf8Q.png" width="500"></img>
-<br>
 <a href="https://towardsdatascience.com/introduction-to-genetic-algorithms-including-example-code-e396e98d8bf3">Source</a>
 <br>
 Turning genes on and off works well for discrete parameters spaces, but to have it work with a continuous space requires switching to real number encoding. It works the same way, however each gene is now a float or double and mutation requires additional spread and strength argument. This approach is what was used in <a href="https://www.sciencedirect.com/science/article/pii/S0921889021001974">Michal Adamik et al. 2022</a>, and gives extremely accurate results when given enough time.
@@ -102,7 +110,6 @@ Turning genes on and off works well for discrete parameters spaces, but to have 
 A visualization can be seen below
 <br>
 <img src="https://raw.githubusercontent.com/nnaisense/pgpelib/release/images/distevo.gif"></img>
-<br>
 <a href="https://github.com/nnaisense/pgpelib#references">Source</a>
 <br>
 
