@@ -14,9 +14,11 @@ M117 Drawing {NAME}...
 ;Scale: {SCALE}
 ;Offset: {OFFSET}
 
+G0 Z10
+
 {LINE_CODE}
 
-G0 X0 Y0 Z10
+G0 Z10
 '''
 
 def clip_points(start, end, mins, maxes) -> tuple:
@@ -33,7 +35,8 @@ def clip_points(start, end, mins, maxes) -> tuple:
     return ((x3, y3), (x4, y4))
 
 # Should add some algorithm to sort by tip to tail to speed up drawing
-def generate_gcode_from_lines(points: np.ndarray, mode: str, name: str, offset: tuple=(0, 0, 0), scale: tuple=(0, 0)) -> None:
+# Only works with normalized lines
+def generate_gcode_from_lines(points: np.ndarray, mode: str, name: str, offset: tuple=(0, 0, 0), scale: tuple=(0, 0), flip_x: bool=False, flip_y: bool=False) -> None:
     lines = points.reshape((-1, 2, 2))
     line_commands = ""
 
@@ -72,8 +75,21 @@ def generate_gcode_from_lines(points: np.ndarray, mode: str, name: str, offset: 
         else: break
 
         start, end = clip_points(start, end, offset, (scale[0] + offset[0], scale[1] + offset[1]))
-        start = np.round(np.array(start), 3)
-        end = np.round(np.array(end), 3)
+
+        if (start[0] is None): continue
+
+        start = np.array(start)
+        end = np.array(end)
+
+        if flip_x:
+            start[0] = (scale[0] - (start[0] - offset[0])) + offset[0]
+            end[0] = (scale[0] - (end[0] - offset[0])) + offset[0]
+        if flip_y:
+            start[1] = (scale[1] - (start[1] - offset[1])) + offset[1]
+            end[1] = (scale[1] - (end[1] - offset[1])) + offset[1]
+
+        start = np.round(start, 3)
+        end = np.round(end, 3)
         command = f'''
 G0 X{start[0]} Y{start[1]}
 G0 Z{0 + offset[2]}
